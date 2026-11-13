@@ -35,14 +35,18 @@ vi.mock("@/lib/supabase/admin", () => ({
   }),
 }));
 
+vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => {}) }));
+
 const disparos: Array<{ kind: string; media?: { filename?: string; url?: string } }> = [];
 
-vi.mock("@/lib/channels", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/channels")>("@/lib/channels");
+vi.mock("@/lib/channels", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
     getAdapter: () => ({
-      codes: { sendFailed: "send_failed" },
+      codes: { sendFailed: "send_failed", notConfigured: "not_configured" },
+      isConfigured: () => true,
+      resolveRecipient: () => "5542999693272@c.us",
       send: vi.fn(async (opts: { kind: string; media?: { filename?: string; url?: string } }) => {
         disparos.push(opts);
         return { externalId: "wamid.outbound-123" };
@@ -67,10 +71,26 @@ describe("Preservação do Nome Original de Arquivos no Envio (Outbound)", () =>
 
   function bancoBase() {
     return criarDubleDoHandler({
-      organizacao: { id: ORG },
-      canais: [{ id: SESSAO, status: "connected", provider: "waha", session_name: "sessao-1" }],
-      contatos: [{ id: CONTATO, wa_id: "5542999693272@c.us" }],
-      conversas: [{ id: CONV, channel_session_id: SESSAO, contact_id: CONTATO }],
+      conversation: {
+        id: CONV,
+        organization_id: ORG,
+        contact_id: CONTATO,
+        channel_session_id: SESSAO,
+        is_group: false,
+        group_chat_id: null,
+        contacts: {
+          phone_number: "+5542999693272",
+          wa_identity: "5542999693272@c.us",
+          wa_lid: null,
+          is_blocked: false,
+        },
+        channel_sessions: {
+          provider: "waha",
+          waha_session_name: "sessao-1",
+          status: "WORKING",
+          archived_at: null,
+        },
+      },
     });
   }
 
